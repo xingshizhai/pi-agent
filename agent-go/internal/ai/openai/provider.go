@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	defaultEndpoint  = "https://api.openai.com/v1/chat/completions"
-	defaultMaxTokens = 8192
+	defaultEndpoint   = "https://api.openai.com/v1/chat/completions"
+	openRouterEndpoint = "https://openrouter.ai/api/v1/chat/completions"
+	defaultMaxTokens  = 8192
 )
 
 // Provider implements ai.Provider for OpenAI.
@@ -26,6 +27,14 @@ type Provider struct {
 func New() *Provider {
 	return &Provider{
 		endpoint: defaultEndpoint,
+		client:   &http.Client{Timeout: 10 * time.Minute},
+	}
+}
+
+// NewOpenRouter returns a Provider configured for the OpenRouter endpoint.
+func NewOpenRouter() *Provider {
+	return &Provider{
+		endpoint: openRouterEndpoint,
 		client:   &http.Client{Timeout: 10 * time.Minute},
 	}
 }

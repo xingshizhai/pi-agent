@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/joho/godotenv"
 	"github.com/pi-agent/agent-go/internal/agent"
 	"github.com/pi-agent/agent-go/internal/ai"
 	"github.com/pi-agent/agent-go/internal/ai/anthropic"
@@ -16,6 +17,9 @@ import (
 )
 
 func main() {
+	// Load .env file if present (silently ignore if not found).
+	_ = godotenv.Load()
+
 	cfg := loadConfig()
 
 	// Headless mode: PI_HEADLESS=1 — used by the test harness.
@@ -36,7 +40,9 @@ func main() {
 
 	// Validate API key.
 	if cfg.APIKey == "" {
-		fmt.Fprintln(os.Stderr, "Error: no API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.")
+		fmt.Fprintln(os.Stderr, "Error: no API key found.")
+		fmt.Fprintln(os.Stderr, "Set one of: OPENROUTER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY")
+		fmt.Fprintln(os.Stderr, "Or create a .env file in the current directory.")
 		os.Exit(1)
 	}
 
@@ -100,10 +106,14 @@ type config struct {
 func loadConfig() config {
 	cfg := config{MaxTurns: 50}
 
-	// Provider / model selection.
-	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
+	// Provider / model selection — OpenRouter takes priority.
+	if key := os.Getenv("OPENROUTER_API_KEY"); key != "" {
+		cfg.Provider = "openrouter"
+		cfg.ModelID = "anthropic/claude-sonnet-4-5"
+		cfg.APIKey = key
+	} else if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
 		cfg.Provider = "anthropic"
-		cfg.ModelID = "claude-sonnet-4-6"
+		cfg.ModelID = "claude-sonnet-4-5"
 		cfg.APIKey = key
 	} else if key := os.Getenv("OPENAI_API_KEY"); key != "" {
 		cfg.Provider = "openai"
@@ -128,10 +138,14 @@ func loadConfig() config {
 // ----- helpers ---------------------------------------------------------------
 
 func buildProvider(prov, _ string) ai.Provider {
-	if prov == "openai" {
+	switch prov {
+	case "openai":
 		return openaiProvider.New()
+	case "openrouter":
+		return openaiProvider.NewOpenRouter()
+	default:
+		return anthropic.New()
 	}
-	return anthropic.New()
 }
 
 func buildTools(cwd string) []tools.Tool {
