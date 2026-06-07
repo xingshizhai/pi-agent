@@ -1,0 +1,11 @@
+layer: 1
+name: "bash returns error when command exceeds timeout"
+workspace: []
+tool_call:
+  name: bash
+  args:
+    command: "sleep 10"
+    timeout: 1
+expect:
+  tool_result:
+    is_error: true

@@ -1,0 +1,34 @@
+layer: 2
+name: "agent writes code file then runs bash to verify it works"
+workspace: []
+prompt: "Write a Python function that reverses a string, then run it to confirm"
+mock_turns:
+  - tool_calls:
+      - id: "t1"
+        name: write
+        args:
+          path: "solution.py"
+          content: |
+            def reverse_string(s):
+                return s[::-1]
+
+            if __name__ == '__main__':
+                print(reverse_string('hello'))   # olleh
+                print(reverse_string('world'))   # dlrow
+    stop_reason: "tool_use"
+  - tool_calls:
+      - id: "t2"
+        name: bash
+        args: {command: "python3 solution.py"}
+    stop_reason: "tool_use"
+  - text: "Done. The output shows 'olleh' and 'dlrow' — string reversal works correctly."
+    stop_reason: "end_turn"
+expect:
+  tool_calls:
+    - {name: write, count: 1}
+    - {name: bash, count: 1}
+  tool_results_all_success: true
+  turns: 3
+  workspace:
+    - path: "solution.py"
+      content: "def reverse_string(s):\n    return s[::-1]\n\nif __name__ == '__main__':\n    print(reverse_string('hello'))   # olleh\n    print(reverse_string('world'))   # dlrow\n"

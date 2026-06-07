@@ -1,0 +1,18 @@
+layer: 1
+name: "edit returns error when oldText not found"
+workspace:
+  - path: "src/main.py"
+    content: "def hello():\n    return 'world'\n"
+tool_call:
+  name: edit
+  args:
+    path: "src/main.py"
+    edits:
+      - oldText: "this text does not exist"
+        newText: "replacement"
+expect:
+  tool_result:
+    is_error: true
+  workspace:
+    - path: "src/main.py"
+      content: "def hello():\n    return 'world'\n"

@@ -1,0 +1,45 @@
+layer: 2
+name: "agent reads buggy code, edits the bug, then verifies fix with bash"
+workspace:
+  - path: "buggy.py"
+    content: |
+      def factorial(n):
+          if n == 0:
+              return 1
+          return n * factorial(n)  # BUG: should be n-1
+
+      if __name__ == '__main__':
+          print(factorial(5))
+prompt: "There is a bug in buggy.py causing infinite recursion. Read the file, fix it, run it."
+mock_turns:
+  - tool_calls:
+      - id: "t1"
+        name: read
+        args: {path: "buggy.py"}
+    stop_reason: "tool_use"
+  - tool_calls:
+      - id: "t2"
+        name: edit
+        args:
+          path: "buggy.py"
+          edits:
+            - oldText: "return n * factorial(n)  # BUG: should be n-1"
+              newText: "return n * factorial(n - 1)"
+    stop_reason: "tool_use"
+  - tool_calls:
+      - id: "t3"
+        name: bash
+        args: {command: "python3 buggy.py"}
+    stop_reason: "tool_use"
+  - text: "Fixed! The infinite recursion bug was `factorial(n)` instead of `factorial(n-1)`. Output is 120."
+    stop_reason: "end_turn"
+expect:
+  tool_calls:
+    - {name: read, count: 1}
+    - {name: edit, count: 1}
+    - {name: bash, count: 1}
+  tool_results_all_success: true
+  turns: 4
+  workspace:
+    - path: "buggy.py"
+      content: "def factorial(n):\n    if n == 0:\n        return 1\n    return n * factorial(n - 1)\n\nif __name__ == '__main__':\n    print(factorial(5))\n"

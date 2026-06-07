@@ -1,0 +1,37 @@
+layer: 2
+name: "agent runs bash, sees error output, then edits code to fix and re-runs"
+workspace:
+  - path: "parse.py"
+    content: |
+      data = "10,20,abc,30"
+      numbers = [int(x) for x in data.split(",")]  # crashes on 'abc'
+      print(sum(numbers))
+prompt: "Run parse.py, it will crash. Fix it so non-numeric values are skipped, then run again."
+mock_turns:
+  - tool_calls:
+      - id: "t1"
+        name: bash
+        args: {command: "python3 parse.py"}
+    stop_reason: "tool_use"
+  - tool_calls:
+      - id: "t2"
+        name: edit
+        args:
+          path: "parse.py"
+          edits:
+            - oldText: "numbers = [int(x) for x in data.split(\",\")]  # crashes on 'abc'"
+              newText: "numbers = [int(x) for x in data.split(\",\") if x.strip().lstrip('-').isdigit()]"
+    stop_reason: "tool_use"
+  - tool_calls:
+      - id: "t3"
+        name: bash
+        args: {command: "python3 parse.py"}
+    stop_reason: "tool_use"
+  - text: "Fixed! The list comprehension now skips 'abc'. Output is 60 (10+20+30)."
+    stop_reason: "end_turn"
+expect:
+  tool_calls:
+    - {name: bash, count: 2}
+    - {name: edit, count: 1}
+  # first bash exits non-zero (ValueError from int('abc')), so we do NOT assert tool_results_all_success
+  turns: 4
