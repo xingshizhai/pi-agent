@@ -1,0 +1,54 @@
+layer: 3
+difficulty: L1
+name: "write palindrome checker"
+description: |
+  Agent must write a Python function from scratch and verify it runs correctly.
+  Tests: write tool, basic code generation, bash execution.
+workspace: []
+prompt: |
+  Write a Python file `solution.py` containing:
+  1. A function `is_palindrome(s)` that returns True if s is a palindrome,
+     ignoring case and non-alphanumeric characters.
+  2. A main block that prints the result (True/False) for each of these inputs,
+     one per line: "racecar", "hello", "A man a plan a canal Panama"
+
+  Then run the file with bash to verify it works.
+timeout: 120
+
+verify:
+  - type: file_exists
+    name: "solution.py was created"
+    path: solution.py
+
+  - type: stdout_contains
+    name: "output matches expected True/False/True"
+    command: "python3 solution.py"
+    expect:
+      - "True"
+      - "False"
+
+  - type: run_tests
+    name: "unit tests pass"
+    command: "python3 -m pytest test_palindrome.py -v --tb=short"
+    test_files:
+      - path: test_palindrome.py
+        content: |
+          from solution import is_palindrome
+
+          def test_racecar():
+              assert is_palindrome("racecar") is True
+
+          def test_hello():
+              assert is_palindrome("hello") is False
+
+          def test_spaces_and_case():
+              assert is_palindrome("A man a plan a canal Panama") is True
+
+          def test_empty():
+              assert is_palindrome("") is True
+
+          def test_single_char():
+              assert is_palindrome("a") is True
+
+          def test_punctuation():
+              assert is_palindrome("Was it a car or a cat I saw?") is True

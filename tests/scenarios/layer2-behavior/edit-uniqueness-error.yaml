@@ -1,0 +1,26 @@
+layer: 2
+name: "edit tool returns is_error=true when oldText is not unique"
+description: |
+  Validates that the edit tool correctly rejects non-unique oldText
+  and that the agent loop properly receives and forwards the error result.
+workspace:
+  - path: "dup.py"
+    content: "x = 1\nx = 1\n"
+prompt: "Edit dup.py to replace x = 1 with x = 2."
+mock_turns:
+  - tool_calls:
+      - id: "t1"
+        name: edit
+        args:
+          path: "dup.py"
+          edits:
+            - oldText: "x = 1"
+              newText: "x = 2"
+    stop_reason: "tool_use"
+  - text: "The edit failed because the text appears twice. I need more context."
+    stop_reason: "end_turn"
+expect:
+  tool_result:
+    is_error: true
+    content_contains: "2 times"
+  workspace_unchanged: true

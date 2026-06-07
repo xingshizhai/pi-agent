@@ -1,0 +1,27 @@
+layer: 2
+name: "agent executes multiple tool calls in same turn (parallel)"
+description: |
+  The LLM emits two read tool calls in a single turn.
+  Both must be executed and both results returned before the next turn.
+workspace:
+  - path: "a.txt"
+    content: "file a\n"
+  - path: "b.txt"
+    content: "file b\n"
+prompt: "Read both a.txt and b.txt."
+mock_turns:
+  - tool_calls:
+      - id: "t1"
+        name: read
+        args: {path: "a.txt"}
+      - id: "t2"
+        name: read
+        args: {path: "b.txt"}
+    stop_reason: "tool_use"
+  - text: "Both files read."
+    stop_reason: "end_turn"
+expect:
+  tool_calls:
+    - {name: read, count: 2}
+  tool_results_all_success: true
+  turns: 2

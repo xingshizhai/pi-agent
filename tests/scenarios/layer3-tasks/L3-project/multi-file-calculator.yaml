@@ -1,0 +1,72 @@
+layer: 3
+difficulty: L3
+name: "build multi-file calculator project"
+description: |
+  Agent must create multiple files forming a coherent project, write tests,
+  and verify everything works end to end. Tests: write, bash, project organisation.
+workspace: []
+prompt: |
+  Create a small Python calculator project with this structure:
+    calculator/
+      __init__.py        (empty)
+      operations.py      (add, subtract, multiply, divide functions)
+      calculator.py      (Calculator class using operations.py)
+    main.py              (demo: creates Calculator, runs sample operations, prints results)
+
+  Requirements:
+  - divide(a, b) must raise ZeroDivisionError when b == 0
+  - Calculator class has methods: add, subtract, multiply, divide
+  - main.py must print results of: add(10,5), subtract(10,5), multiply(3,4), divide(10,2)
+
+  Run main.py to confirm it works.
+timeout: 180
+
+verify:
+  - type: file_exists
+    name: "calculator/operations.py exists"
+    path: calculator/operations.py
+
+  - type: file_exists
+    name: "calculator/calculator.py exists"
+    path: calculator/calculator.py
+
+  - type: file_exists
+    name: "main.py exists"
+    path: main.py
+
+  - type: run_no_error
+    name: "main.py runs without errors"
+    command: "python3 main.py"
+
+  - type: stdout_contains
+    name: "main.py prints correct results"
+    command: "python3 main.py"
+    expect: ["15", "5", "12", "5"]
+
+  - type: run_tests
+    name: "unit tests pass"
+    command: "python3 -m pytest test_calculator.py -v --tb=short"
+    test_files:
+      - path: test_calculator.py
+        content: |
+          import pytest
+          from calculator.operations import add, subtract, multiply, divide
+          from calculator.calculator import Calculator
+
+          def test_add():      assert add(2, 3) == 5
+          def test_subtract(): assert subtract(10, 4) == 6
+          def test_multiply(): assert multiply(3, 4) == 12
+          def test_divide():   assert divide(10, 2) == 5.0
+
+          def test_divide_by_zero():
+              with pytest.raises(ZeroDivisionError):
+                  divide(1, 0)
+
+          def test_calculator_add():
+              c = Calculator()
+              assert c.add(7, 3) == 10
+
+          def test_calculator_divide_by_zero():
+              c = Calculator()
+              with pytest.raises(ZeroDivisionError):
+                  c.divide(1, 0)

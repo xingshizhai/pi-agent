@@ -1,0 +1,23 @@
+layer: 2
+name: "read tool paginates large files with offset hint"
+description: |
+  Reads a file with offset and limit, verifies line numbers are correct
+  and the continuation hint is present.
+workspace:
+  - path: "big.txt"
+    content: "line1\nline2\nline3\nline4\nline5\n"
+prompt: "Read big.txt starting at line 2, limit 2 lines."
+mock_turns:
+  - tool_calls:
+      - id: "t1"
+        name: read
+        args: {path: "big.txt", offset: 2, limit: 2}
+    stop_reason: "tool_use"
+  - text: "Read lines 2-3."
+    stop_reason: "end_turn"
+expect:
+  tool_result:
+    is_error: false
+    content_contains: "2\tline2"
+    content_not_contains: "1\tline1"
+  turns: 2

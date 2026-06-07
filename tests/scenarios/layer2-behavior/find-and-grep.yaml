@@ -1,0 +1,29 @@
+layer: 2
+name: "agent uses find and grep to locate relevant code"
+workspace:
+  - path: "src/utils.py"
+    content: "def helper(): pass\ndef main_func(): pass\n"
+  - path: "src/main.py"
+    content: "from utils import main_func\nmain_func()\n"
+  - path: "tests/test_utils.py"
+    content: "from src.utils import helper\n"
+prompt: "Find all Python files and grep for 'main_func'."
+mock_turns:
+  - tool_calls:
+      - id: "t1"
+        name: find
+        args: {path: ".", pattern: "*.py"}
+    stop_reason: "tool_use"
+  - tool_calls:
+      - id: "t2"
+        name: grep
+        args: {path: ".", pattern: "main_func"}
+    stop_reason: "tool_use"
+  - text: "Found main_func in src/utils.py and src/main.py."
+    stop_reason: "end_turn"
+expect:
+  tool_calls:
+    - {name: find, count: 1}
+    - {name: grep, count: 1}
+  tool_results_all_success: true
+  turns: 3

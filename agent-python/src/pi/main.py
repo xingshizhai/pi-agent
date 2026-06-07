@@ -7,6 +7,12 @@ import sys
 
 
 def main() -> None:
+    # Headless mode for test harness: PI_HEADLESS=1
+    if os.environ.get("PI_HEADLESS") == "1":
+        from .headless import run as headless_run
+        headless_run()
+        return
+
     parser = argparse.ArgumentParser(description="pi — terminal coding agent")
     parser.add_argument(
         "--model",

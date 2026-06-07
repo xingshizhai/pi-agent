@@ -1,0 +1,63 @@
+layer: 3
+difficulty: L3
+name: "iterative debug: fix failing tests one by one"
+description: |
+  Agent is given a file with multiple bugs AND a prewritten test file.
+  It must run the tests, read the failures, fix them, and iterate until all pass.
+  Tests: bash (pytest), read, edit, iterative workflow.
+workspace:
+  - path: "string_utils.py"
+    content: |
+      def reverse_string(s):
+          return s           # BUG: not reversed
+
+      def count_vowels(s):
+          vowels = "aeiou"
+          return sum(1 for c in s if c in vowels)  # BUG: ignores uppercase
+
+      def title_case(s):
+          return s.title()
+
+      def is_anagram(s1, s2):
+          return sorted(s1) == sorted(s2)  # BUG: doesn't ignore case/spaces
+
+  - path: "test_string_utils.py"
+    content: |
+      from string_utils import reverse_string, count_vowels, title_case, is_anagram
+
+      def test_reverse():
+          assert reverse_string("hello") == "olleh"
+          assert reverse_string("") == ""
+
+      def test_count_vowels_lowercase():
+          assert count_vowels("hello") == 2
+
+      def test_count_vowels_uppercase():
+          assert count_vowels("HELLO") == 2
+
+      def test_title_case():
+          assert title_case("hello world") == "Hello World"
+
+      def test_anagram_basic():
+          assert is_anagram("listen", "silent") is True
+
+      def test_anagram_case_insensitive():
+          assert is_anagram("Listen", "Silent") is True
+
+      def test_not_anagram():
+          assert is_anagram("hello", "world") is False
+prompt: |
+  Run the tests in test_string_utils.py. Some will fail.
+  Read the failures, fix the bugs in string_utils.py, and keep running tests
+  until all tests pass. Do not modify test_string_utils.py.
+timeout: 240
+
+verify:
+  - type: run_tests
+    name: "all tests in test_string_utils.py pass"
+    command: "python3 -m pytest test_string_utils.py -v --tb=short"
+
+  - type: stdout_not_contains
+    name: "no test failures"
+    command: "python3 -m pytest test_string_utils.py -v"
+    forbidden: ["FAILED", "ERROR"]

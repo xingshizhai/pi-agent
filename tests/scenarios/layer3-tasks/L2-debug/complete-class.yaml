@@ -1,0 +1,90 @@
+layer: 3
+difficulty: L2
+name: "complete partial Stack class"
+description: |
+  Agent must read a partially implemented class, understand the interface,
+  and complete the missing methods. Tests: read, edit, bash, code completion.
+workspace:
+  - path: "stack.py"
+    content: |
+      class Stack:
+          def __init__(self):
+              self.items = []
+
+          def push(self, item):
+              self.items.append(item)
+
+          # TODO: implement pop() — raises IndexError if empty
+          # TODO: implement peek() — returns top without removing, raises IndexError if empty
+          # TODO: implement is_empty() — returns True if stack has no items
+          # TODO: implement size() — returns number of items
+
+      if __name__ == '__main__':
+          s = Stack()
+          s.push(1)
+          s.push(2)
+          s.push(3)
+          print(s.size())    # 3
+          print(s.peek())    # 3
+          print(s.pop())     # 3
+          print(s.size())    # 2
+          print(s.is_empty()) # False
+prompt: |
+  Read stack.py and implement all the TODO methods in the Stack class.
+  The docstring comments describe the expected behavior.
+  Run the file to verify the output matches the comments in the main block.
+timeout: 150
+
+verify:
+  - type: run_no_error
+    name: "stack.py runs without errors"
+    command: "python3 stack.py"
+
+  - type: stdout_contains
+    name: "main block output is correct"
+    command: "python3 stack.py"
+    expect: ["3", "3", "3", "2", "False"]
+
+  - type: run_tests
+    name: "unit tests pass"
+    command: "python3 -m pytest test_stack.py -v --tb=short"
+    test_files:
+      - path: test_stack.py
+        content: |
+          import pytest
+          from stack import Stack
+
+          def test_push_and_size():
+              s = Stack()
+              s.push(1)
+              s.push(2)
+              assert s.size() == 2
+
+          def test_pop():
+              s = Stack()
+              s.push(10)
+              s.push(20)
+              assert s.pop() == 20
+              assert s.size() == 1
+
+          def test_peek():
+              s = Stack()
+              s.push(5)
+              assert s.peek() == 5
+              assert s.size() == 1  # peek doesn't remove
+
+          def test_is_empty():
+              s = Stack()
+              assert s.is_empty() is True
+              s.push(1)
+              assert s.is_empty() is False
+
+          def test_pop_empty_raises():
+              s = Stack()
+              with pytest.raises(IndexError):
+                  s.pop()
+
+          def test_peek_empty_raises():
+              s = Stack()
+              with pytest.raises(IndexError):
+                  s.peek()

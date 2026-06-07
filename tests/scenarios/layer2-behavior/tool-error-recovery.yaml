@@ -1,0 +1,35 @@
+layer: 2
+name: "agent recovers after tool error and retries with corrected args"
+description: |
+  The agent calls read on a non-existent file (tool returns is_error=true),
+  then calls write to create it, then read again successfully.
+  Verifies the agent loop continues correctly after a tool failure.
+workspace: []
+prompt: "Create hello.txt with content 'hello world' and then read it back."
+mock_turns:
+  - tool_calls:
+      - id: "t1"
+        name: read
+        args: {path: "hello.txt"}
+    stop_reason: "tool_use"
+  # t1 will return is_error=true (file not found) — agent should recover
+  - tool_calls:
+      - id: "t2"
+        name: write
+        args: {path: "hello.txt", content: "hello world"}
+    stop_reason: "tool_use"
+  - tool_calls:
+      - id: "t3"
+        name: read
+        args: {path: "hello.txt"}
+    stop_reason: "tool_use"
+  - text: "Created and read hello.txt successfully."
+    stop_reason: "end_turn"
+expect:
+  tool_calls:
+    - {name: read,  count: 2}
+    - {name: write, count: 1}
+  workspace:
+    - path: "hello.txt"
+      content: "hello world"
+  turns: 4

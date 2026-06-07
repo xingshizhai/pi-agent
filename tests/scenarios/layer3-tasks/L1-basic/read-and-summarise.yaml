@@ -1,0 +1,29 @@
+layer: 3
+difficulty: L1
+name: "read file and append summary"
+description: |
+  Agent reads an existing file and appends a computed summary line.
+  Tests: read, edit/write, basic text processing.
+workspace:
+  - path: "data.txt"
+    content: |
+      apple
+      banana
+      cherry
+      date
+      elderberry
+prompt: |
+  Read data.txt, count the number of lines, and append a final line
+  "Total: N items" (where N is the line count) to the file.
+  Then verify by reading it back.
+timeout: 90
+
+verify:
+  - type: file_content_contains
+    name: "summary line was appended"
+    path: data.txt
+    contains: "Total: 5 items"
+
+  - type: run_no_error
+    name: "file is valid text"
+    command: "python3 -c \"data=open('data.txt').read(); assert 'Total: 5 items' in data\""

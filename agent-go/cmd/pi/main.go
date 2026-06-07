@@ -9,6 +9,7 @@ import (
 	"github.com/pi-agent/agent-go/internal/ai"
 	"github.com/pi-agent/agent-go/internal/ai/anthropic"
 	openaiProvider "github.com/pi-agent/agent-go/internal/ai/openai"
+	"github.com/pi-agent/agent-go/internal/headless"
 	"github.com/pi-agent/agent-go/internal/session"
 	"github.com/pi-agent/agent-go/internal/tools"
 	"github.com/pi-agent/agent-go/internal/tui"
@@ -16,6 +17,22 @@ import (
 
 func main() {
 	cfg := loadConfig()
+
+	// Headless mode: PI_HEADLESS=1 — used by the test harness.
+	// In this mode we accept JSON on stdin and emit NDJSON events on stdout.
+	// A dummy API key is accepted so mock-based tests don't need real credentials.
+	if os.Getenv("PI_HEADLESS") == "1" {
+		// Allow empty API key when using mock provider (test harness supplies dummy).
+		apiKey := cfg.APIKey
+		if apiKey == "" {
+			apiKey = "sk-test-dummy"
+		}
+		if err := headless.Run(apiKey, cfg.Provider, cfg.ModelID); err != nil {
+			fmt.Fprintf(os.Stderr, "headless error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	// Validate API key.
 	if cfg.APIKey == "" {

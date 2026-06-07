@@ -1,0 +1,46 @@
+layer: 3
+difficulty: L2
+name: "fix infinite recursion bug"
+description: |
+  Agent must diagnose a runtime error (infinite recursion) by reading the code,
+  identify the missing base case / wrong recursive call, fix it, and verify.
+  Tests: read, edit, bash, recursive algorithm understanding.
+workspace:
+  - path: "factorial.py"
+    content: |
+      def factorial(n):
+          if n == 0:
+              return 1
+          return n * factorial(n)   # BUG: should be factorial(n - 1)
+
+      if __name__ == '__main__':
+          print(factorial(5))   # should print 120
+          print(factorial(0))   # should print 1
+          print(factorial(1))   # should print 1
+prompt: |
+  Running factorial.py causes infinite recursion.
+  Read the file, identify the bug, fix it, and run it to confirm the output is correct.
+timeout: 120
+
+verify:
+  - type: run_no_error
+    name: "factorial.py runs without recursion error"
+    command: "python3 factorial.py"
+
+  - type: stdout_contains
+    name: "factorial output is correct"
+    command: "python3 factorial.py"
+    expect: ["120", "1"]
+
+  - type: run_tests
+    name: "unit tests pass"
+    command: "python3 -m pytest test_factorial.py -v --tb=short"
+    test_files:
+      - path: test_factorial.py
+        content: |
+          from factorial import factorial
+
+          def test_zero():   assert factorial(0) == 1
+          def test_one():    assert factorial(1) == 1
+          def test_five():   assert factorial(5) == 120
+          def test_ten():    assert factorial(10) == 3628800

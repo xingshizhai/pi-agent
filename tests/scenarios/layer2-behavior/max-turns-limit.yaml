@@ -1,0 +1,22 @@
+layer: 2
+name: "agent stops at PI_MAX_TURNS even if mock_turns has more"
+description: |
+  We supply 5 mock turns but cap PI_MAX_TURNS=3.
+  The agent must stop at or before 3 turns, not exhaust all mock turns.
+workspace: []
+prompt: "keep calling bash"
+mock_turns:
+  - tool_calls: [{id: "t1", name: bash, args: {command: "echo 1"}}]
+    stop_reason: "tool_use"
+  - tool_calls: [{id: "t2", name: bash, args: {command: "echo 2"}}]
+    stop_reason: "tool_use"
+  - tool_calls: [{id: "t3", name: bash, args: {command: "echo 3"}}]
+    stop_reason: "tool_use"
+  - tool_calls: [{id: "t4", name: bash, args: {command: "echo 4"}}]
+    stop_reason: "tool_use"
+  - text: "done"
+    stop_reason: "end_turn"
+env:
+  PI_MAX_TURNS: "3"
+expect:
+  max_turns: 3

@@ -1,33 +1,44 @@
-import tempfile, shutil
+"""Temporary workspace management for test scenarios."""
+import shutil
+import tempfile
 from pathlib import Path
+
 
 class Workspace:
     def __init__(self):
-        self.dir = tempfile.mkdtemp(prefix="pi-test-")
+        self._dir = Path(tempfile.mkdtemp(prefix="pi-test-"))
+
+    @property
+    def dir(self) -> str:
+        return str(self._dir)
 
     def setup(self, files: list[dict]):
-        """Create files in the workspace. Each dict: {path, content}."""
+        """Create workspace files. Each dict: {path, content}."""
         for f in files:
-            p = Path(self.dir) / f["path"]
+            p = self._dir / f["path"]
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(f["content"], encoding="utf-8")
 
     def read(self, path: str) -> str:
-        return (Path(self.dir) / path).read_text(encoding="utf-8")
+        return (self._dir / path).read_text(encoding="utf-8")
 
     def exists(self, path: str) -> bool:
-        return (Path(self.dir) / path).exists()
+        return (self._dir / path).exists()
 
     def snapshot(self) -> dict[str, str]:
-        """Return {relative_path: content} for all files."""
+        """Return {relative_path: content} for all files in workspace."""
         result = {}
-        for p in Path(self.dir).rglob("*"):
+        for p in self._dir.rglob("*"):
             if p.is_file():
-                result[str(p.relative_to(self.dir))] = p.read_text(encoding="utf-8")
+                key = str(p.relative_to(self._dir)).replace("\\", "/")
+                result[key] = p.read_text(encoding="utf-8")
         return result
 
     def cleanup(self):
-        shutil.rmtree(self.dir, ignore_errors=True)
+        shutil.rmtree(self._dir, ignore_errors=True)
 
-    def __enter__(self): return self
-    def __exit__(self, *_): self.cleanup()
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.cleanup()

@@ -1,0 +1,54 @@
+layer: 3
+difficulty: L1
+name: "write fibonacci generator"
+description: |
+  Agent writes a Python generator function and verifies output.
+  Tests: write, bash, basic algorithm implementation.
+workspace: []
+prompt: |
+  Write a Python file `fib.py` with:
+  1. A function `fibonacci(n)` that returns a list of the first n Fibonacci numbers.
+     fibonacci(0) returns [], fibonacci(1) returns [0], fibonacci(7) returns [0,1,1,2,3,5,8].
+  2. A main block that prints fibonacci(10) on one line.
+
+  Run it with bash to verify.
+timeout: 120
+
+verify:
+  - type: file_exists
+    name: "fib.py was created"
+    path: fib.py
+
+  - type: stdout_contains
+    name: "fibonacci(10) output is correct"
+    command: "python3 fib.py"
+    expect:
+      - "0"
+      - "1"
+      - "34"   # 9th Fibonacci number
+
+  - type: run_tests
+    name: "unit tests pass"
+    command: "python3 -m pytest test_fib.py -v --tb=short"
+    test_files:
+      - path: test_fib.py
+        content: |
+          from fib import fibonacci
+
+          def test_zero():
+              assert fibonacci(0) == []
+
+          def test_one():
+              assert fibonacci(1) == [0]
+
+          def test_two():
+              assert fibonacci(2) == [0, 1]
+
+          def test_seven():
+              assert fibonacci(7) == [0, 1, 1, 2, 3, 5, 8]
+
+          def test_ten():
+              result = fibonacci(10)
+              assert len(result) == 10
+              assert result[0] == 0
+              assert result[-1] == 34
