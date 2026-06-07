@@ -25,39 +25,51 @@ fn render_chat(f: &mut Frame, state: &AppState, area: ratatui::layout::Rect) {
     let mut lines: Vec<Line> = Vec::new();
 
     for msg in &state.messages {
-        let (prefix, prefix_style, text_style) = match msg.role.as_str() {
-            "user" => (
-                "You: ",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-                Style::default(),
-            ),
-            "assistant" => (
-                "Assistant: ",
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
-                Style::default(),
-            ),
-            "tool" => (
-                "",
-                Style::default().fg(Color::Yellow),
-                Style::default().fg(Color::DarkGray),
-            ),
-            _ => ("", Style::default(), Style::default()),
-        };
-
-        let final_style = if msg.is_error {
-            Style::default().fg(Color::Red)
-        } else {
-            text_style
-        };
-
-        lines.push(Line::from(vec![
-            Span::styled(prefix, prefix_style),
-            Span::styled(&msg.content, final_style),
-        ]));
+        match msg.role.as_str() {
+            "user" => {
+                lines.push(Line::from(vec![
+                    Span::styled(
+                        "You: ",
+                        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::raw(&msg.content),
+                ]));
+            }
+            "assistant" => {
+                lines.push(Line::from(vec![
+                    Span::styled(
+                        "Assistant: ",
+                        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::raw(&msg.content),
+                ]));
+            }
+            "tool" => {
+                let style = if msg.is_error {
+                    Style::default().fg(Color::Red)
+                } else {
+                    Style::default().fg(Color::Green)
+                };
+                lines.push(Line::from(vec![
+                    Span::styled(format!("  {}", msg.content), style),
+                ]));
+            }
+            _ => {}
+        }
         lines.push(Line::raw(""));
     }
 
-    // Show streaming text with cursor
+    // Active (in-progress) tool executions.
+    for summary in state.active_tools.values() {
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!("  ⟳ {summary}"),
+                Style::default().fg(Color::Yellow),
+            ),
+        ]));
+    }
+
+    // Streaming LLM output with cursor.
     if state.is_streaming && !state.stream_buf.is_empty() {
         lines.push(Line::from(vec![
             Span::styled(
@@ -73,11 +85,11 @@ fn render_chat(f: &mut Frame, state: &AppState, area: ratatui::layout::Rect) {
                 "Assistant: ",
                 Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
             ),
-            Span::styled("thinking...", Style::default().fg(Color::DarkGray)),
+            Span::styled("thinking…", Style::default().fg(Color::DarkGray)),
         ]));
     }
 
-    // Auto-scroll: compute how far down we are
+    // Auto-scroll: scroll to bottom unless user has scrolled up.
     let total = lines.len() as u16;
     let visible = area.height.saturating_sub(2); // subtract borders
     let auto_scroll = total.saturating_sub(visible);
@@ -95,7 +107,7 @@ fn render_input(f: &mut Frame, state: &AppState, area: ratatui::layout::Rect) {
     let title = if state.is_streaming {
         " Input (streaming — Ctrl+C to cancel) "
     } else {
-        " Input (Ctrl+Enter to send) "
+        " Input (Ctrl+Enter to send, /help for commands) "
     };
 
     let widget = Paragraph::new(state.input_buf.as_str())
@@ -106,7 +118,21 @@ fn render_input(f: &mut Frame, state: &AppState, area: ratatui::layout::Rect) {
 }
 
 fn render_status(f: &mut Frame, state: &AppState, area: ratatui::layout::Rect) {
-    let status = format!("  {}  ", state.status_model);
+    let mut parts: Vec<String> = vec![state.status_model.clone()];
+
+    if state.input_tokens > 0 || state.output_tokens > 0 {
+        parts.push(format!("↑{} ↓{} tokens", state.input_tokens, state.output_tokens));
+    }
+
+    if state.last_latency_ms > 0 {
+        parts.push(format!("{:.1}s", state.last_latency_ms as f64 / 1000.0));
+    }
+
+    if state.is_streaming {
+        parts.push("● streaming".into());
+    }
+
+    let status = format!("  {}  ", parts.join("  │  "));
     let widget = Paragraph::new(status)
         .style(Style::default().bg(Color::DarkGray).fg(Color::White));
     f.render_widget(widget, area);

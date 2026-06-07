@@ -15,14 +15,22 @@ class StatusBar(Widget):
     """
 
     model_name: reactive[str] = reactive("—")
-    token_count: reactive[int] = reactive(0)
+    input_tokens: reactive[int] = reactive(0)
+    output_tokens: reactive[int] = reactive(0)
     elapsed_ms: reactive[int] = reactive(0)
     is_streaming: reactive[bool] = reactive(False)
 
     def render(self) -> Text:
-        spinner = "⠋" if self.is_streaming else " "
-        elapsed = f"{self.elapsed_ms / 1000:.1f}s" if self.elapsed_ms else "—"
-        return Text(
-            f" {spinner} {self.model_name}  |  {self.token_count} tokens  |  {elapsed}",
-            style="dim",
-        )
+        parts: list[str] = [self.model_name]
+
+        if self.input_tokens > 0 or self.output_tokens > 0:
+            parts.append(f"↑{self.input_tokens} ↓{self.output_tokens} tokens")
+
+        if self.elapsed_ms:
+            parts.append(f"{self.elapsed_ms / 1000:.1f}s")
+
+        if self.is_streaming:
+            parts.append("● streaming")
+
+        line = "  │  ".join(parts)
+        return Text(f" {line} ", style="dim")

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -82,15 +83,50 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case msg.Type == tea.KeyCtrlL:
 			m.messages = nil
+			m.streamBuf.Reset()
 			m.rebuildViewport()
 			return m, nil
 		}
 
-		// Handle slash commands.
+		// Handle slash commands (submitted via Ctrl+Enter).
+		// We intercept them in the key handler when Enter is pressed.
+		// Also check here for immediate /exit etc.
 		if m.inputMode == ModeNormal {
-			val := m.input.Value()
-			if val == "/exit" || val == "/quit" {
+			val := strings.TrimSpace(m.input.Value())
+			switch val {
+			case "/exit", "/quit":
 				return m, tea.Quit
+			case "/clear":
+				m.input.SetValue("")
+				m.messages = nil
+				m.streamBuf.Reset()
+				m.rebuildViewport()
+				return m, nil
+			case "/help":
+				m.input.SetValue("")
+				helpMsg := "Commands: /clear  /help  /session  /exit\n" +
+					"Keys: Ctrl+Enter=send  Ctrl+C=cancel/quit  ↑↓=history  Ctrl+L=clear"
+				m.messages = append(m.messages, RenderMessage{Role: "assistant", Content: helpMsg})
+				m.rebuildViewport()
+				return m, nil
+			case "/session":
+				m.input.SetValue("")
+				if m.sessionMgr != nil {
+					sessions, err := m.sessionMgr.List()
+					var info string
+					if err != nil || len(sessions) == 0 {
+						info = "No sessions found."
+					} else {
+						var lines []string
+						for _, s := range sessions {
+							lines = append(lines, fmt.Sprintf("  %s  %s  %s", s.ID[:8], s.CWD, s.Title))
+						}
+						info = strings.Join(lines, "\n")
+					}
+					m.messages = append(m.messages, RenderMessage{Role: "assistant", Content: info})
+					m.rebuildViewport()
+				}
+				return m, nil
 			}
 		}
 
@@ -184,8 +220,9 @@ func (m Model) handleAgentEvent(ev agent.AgentEvent) []tea.Cmd {
 		}
 
 	case agent.EventTurnEnd:
-		m.inputTokens = ev.InputTokens
-		m.outputTokens = ev.OutputTokens
+		// Accumulate tokens across turns.
+		m.inputTokens += ev.InputTokens
+		m.outputTokens += ev.OutputTokens
 		if m.agentEvents != nil {
 			cmds = append(cmds, listenAgent(m.agentEvents))
 		}

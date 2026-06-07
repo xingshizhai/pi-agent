@@ -121,6 +121,9 @@ func (m Model) renderStatus() string {
 	if m.lastLatency > 0 {
 		parts = append(parts, fmt.Sprintf("%.1fs", m.lastLatency.Seconds()))
 	}
+	if m.streaming {
+		parts = append(parts, "● streaming")
+	}
 	if m.flashError != "" {
 		parts = append(parts, errorStyle.Render("⚠ "+m.flashError))
 	}
@@ -138,14 +141,13 @@ func (m *Model) rebuildViewport() {
 			fmt.Fprintf(&sb, "%s %s\n\n", assistantStyle.Render("Assistant:"), msg.Content)
 		case "tool":
 			content := msg.Content
-			if len([]rune(content)) > 60 {
-				content = string([]rune(content)[:60])
+			if len([]rune(content)) > 120 {
+				content = string([]rune(content)[:120]) + "…"
 			}
-			prefix := "  [" + content + "]"
 			if msg.IsError {
-				fmt.Fprintf(&sb, "%s\n", errorStyle.Render(prefix))
+				fmt.Fprintf(&sb, "%s\n", errorStyle.Render("  ✗ "+content))
 			} else {
-				fmt.Fprintf(&sb, "%s\n", toolStyle.Render(prefix))
+				fmt.Fprintf(&sb, "%s\n", toolStyle.Render("  ✓ "+content))
 			}
 		}
 	}

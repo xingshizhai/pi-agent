@@ -53,7 +53,7 @@ def main() -> None:
 
     from .tui.app import PiApp
     cwd = os.getcwd()
-    app = PiApp(model_id=args.model, api_key=api_key, cwd=cwd)
+    app = PiApp(model_id=args.model, api_key=api_key, cwd=cwd, provider=args.provider)
     app.run()
 
 

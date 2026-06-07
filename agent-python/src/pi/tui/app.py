@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 
 from textual.app import App, ComposeResult
@@ -9,10 +10,10 @@ from textual.binding import Binding
 
 from ..agent.context import AgentContext, AgentConfig
 from ..agent.events import (
-    AgentEnd, MessageUpdate, ToolExecEnd, ToolExecStart,
+    AgentEnd, AgentError, MessageUpdate,
+    ToolExecEnd, ToolExecStart, TurnEnd,
 )
 from ..agent.loop import agent_loop
-from ..ai.anthropic import AnthropicProvider
 from ..session.manager import SessionManager
 from ..tools.bash import BashTool
 from ..tools.edit import EditTool
@@ -29,6 +30,27 @@ SYSTEM_PROMPT = """You are a skilled coding assistant. You help users with progr
 You have access to tools to read, write, and edit files, run bash commands, and search code.
 Always think step by step and use tools to accomplish tasks."""
 
+HELP_TEXT = """\
+**Available slash commands:**
+- `/clear` — clear the chat display (context is preserved)
+- `/help`  — show this help message
+- `/exit`  — quit pi
+
+**Key bindings:**
+- `Ctrl+Enter` or `Ctrl+J` — send message
+- `Ctrl+C` — cancel current task (or quit if idle)
+- `Ctrl+L` — clear screen
+- `↑` / `↓` — browse input history (when input is empty)
+"""
+
+
+def _build_provider(provider_name: str):
+    if provider_name == "openai":
+        from ..ai.openai import OpenAIProvider
+        return OpenAIProvider()
+    from ..ai.anthropic import AnthropicProvider
+    return AnthropicProvider()
+
 
 class PiApp(App):
     CSS = """
@@ -42,18 +64,20 @@ class PiApp(App):
         Binding("ctrl+l", "clear_screen", "Clear", show=False),
     ]
 
-    def __init__(self, model_id: str, api_key: str, cwd: str) -> None:
+    def __init__(self, model_id: str, api_key: str, cwd: str, provider: str = "anthropic") -> None:
         super().__init__()
         self._model_id = model_id
         self._api_key = api_key
         self._cwd = cwd
+        self._provider_name = provider
+
         self._cancel_signal: asyncio.Event | None = None
         self._agent_task: asyncio.Task | None = None
         self._session_mgr = SessionManager()
         self._session = self._session_mgr.new_session(cwd)
         self._start_time: float = 0.0
 
-        self._provider = AnthropicProvider()
+        self._provider = _build_provider(provider)
         self._tools = [
             ReadTool(), WriteTool(), EditTool(), BashTool(),
             FindTool(), GrepTool(), LsTool(),
@@ -70,15 +94,44 @@ class PiApp(App):
         yield InputWidget(id="input")
         yield StatusBar(id="status")
 
+    def on_mount(self) -> None:
+        status = self.query_one(StatusBar)
+        status.model_name = self._model_id
+
     def on_input_widget_submitted(self, event: InputWidget.Submitted) -> None:
-        self._start_turn(event.text)
+        text = event.text.strip()
+        if not text:
+            return
+
+        # Slash commands.
+        if text.startswith("/"):
+            self._handle_slash(text)
+            return
+
+        # Add to input history.
+        self.query_one(InputWidget).add_to_history(text)
+        self._start_turn(text)
+
+    def _handle_slash(self, cmd: str) -> None:
+        input_widget = self.query_one(InputWidget)
+        chat = self.query_one(ChatView)
+        cmd = cmd.strip().lower()
+        if cmd in ("/exit", "/quit"):
+            self.exit()
+        elif cmd == "/clear":
+            chat.clear_messages()
+        elif cmd == "/help":
+            chat.add_message(ChatMessage(role="assistant", content=HELP_TEXT))
+        else:
+            chat.add_message(ChatMessage(
+                role="tool", content=f"Unknown command: {cmd}. Type /help for help.", is_error=True
+            ))
 
     def _start_turn(self, user_text: str) -> None:
         chat = self.query_one(ChatView)
         chat.add_message(ChatMessage(role="user", content=user_text))
 
         status = self.query_one(StatusBar)
-        status.model_name = self._model_id
         status.is_streaming = True
         self._start_time = time.monotonic()
 
@@ -87,50 +140,54 @@ class PiApp(App):
             self._run_agent(user_text, self._cancel_signal)
         )
 
-    async def _run_agent(self, user_text: str, signal: asyncio.Event) -> None:
+    async def _run_agent(self, user_text: str, cancel: asyncio.Event) -> None:
         chat = self.query_one(ChatView)
         status = self.query_one(StatusBar)
-        assistant_buf: list[str] = []
 
         def emit(event) -> None:
             if isinstance(event, MessageUpdate):
-                assistant_buf.append(event.delta)
                 chat.append_stream(event.delta)
+
             elif isinstance(event, ToolExecStart):
-                chat.add_message(ChatMessage(
-                    role="tool",
-                    content=f"Running {event.name}...",
-                    tool_name=event.name,
-                ))
+                chat.tool_start(event.id, event.name)
+
             elif isinstance(event, ToolExecEnd):
-                chat.add_message(ChatMessage(
-                    role="tool",
-                    content=event.result.content[:500],
-                    tool_name=event.name,
-                    is_error=event.is_error,
-                ))
+                result_content = event.result.content if event.result else ""
+                chat.tool_end(event.id, event.name, result_content, event.is_error)
+
+            elif isinstance(event, TurnEnd):
+                # Accumulate token counts.
+                if hasattr(event, "input_tokens") and event.input_tokens:
+                    status.input_tokens += event.input_tokens
+                if hasattr(event, "output_tokens") and event.output_tokens:
+                    status.output_tokens += event.output_tokens
+
             elif isinstance(event, AgentEnd):
-                full_text = "".join(assistant_buf)
-                if full_text:
-                    chat.flush_stream(full_text)
-                    chat.add_message(ChatMessage(role="assistant", content=full_text))
+                chat.flush_stream()
                 elapsed = int((time.monotonic() - self._start_time) * 1000)
                 status.elapsed_ms = elapsed
                 status.is_streaming = False
+                # Persist messages incrementally.
+                for msg in self._ctx.messages:
+                    self._session_mgr.append_message(self._session, msg)
 
-        await agent_loop(user_text, self._ctx, self._provider, emit, signal=signal)
+            elif isinstance(event, AgentError):
+                chat.add_message(ChatMessage(
+                    role="tool",
+                    content=f"Error: {event.message}",
+                    is_error=True,
+                ))
+                status.is_streaming = False
 
-        for msg in self._ctx.messages[-10:]:
-            self._session_mgr.append_message(self._session, msg)
+        await agent_loop(user_text, self._ctx, self._provider, emit, signal=cancel)
 
     def action_cancel_or_quit(self) -> None:
         status = self.query_one(StatusBar)
         if self._cancel_signal and not self._cancel_signal.is_set() and status.is_streaming:
             self._cancel_signal.set()
+            status.is_streaming = False
         else:
             self.exit()
 
     def action_clear_screen(self) -> None:
-        chat = self.query_one(ChatView)
-        chat._messages.clear()
-        chat.refresh()
+        self.query_one(ChatView).clear_messages()
