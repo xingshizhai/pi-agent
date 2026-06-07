@@ -85,3 +85,96 @@ mod write_tests {
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "hi");
     }
 }
+
+// ---------- edit tests ----------
+
+mod edit_tests {
+    use super::*;
+    use pi_agent::tools::edit::EditTool;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    #[tokio::test]
+    async fn edit_replaces_text() {
+        let mut f = NamedTempFile::new().unwrap();
+        write!(f, "hello world\nfoo bar\n").unwrap();
+        let path = f.path().to_str().unwrap().to_string();
+
+        let result = EditTool.execute("id", serde_json::json!({
+            "path": path.clone(),
+            "edits": [{"oldText": "hello world", "newText": "goodbye world"}]
+        }), CancellationToken::new(), None).await;
+
+        assert!(!result.is_error, "got error: {}", result.content);
+        let updated = std::fs::read_to_string(&path).unwrap();
+        assert!(updated.contains("goodbye world"), "updated: {updated}");
+        assert!(!updated.contains("hello world"), "should have replaced: {updated}");
+    }
+
+    #[tokio::test]
+    async fn edit_fails_on_duplicate_old_text() {
+        let mut f = NamedTempFile::new().unwrap();
+        write!(f, "foo\nfoo\n").unwrap();
+        let path = f.path().to_str().unwrap().to_string();
+
+        let result = EditTool.execute("id", serde_json::json!({
+            "path": path,
+            "edits": [{"oldText": "foo", "newText": "bar"}]
+        }), CancellationToken::new(), None).await;
+
+        assert!(result.is_error, "should have failed");
+        assert!(result.content.contains("2 times"), "msg: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn edit_fails_when_old_text_not_found() {
+        let mut f = NamedTempFile::new().unwrap();
+        write!(f, "hello\n").unwrap();
+        let path = f.path().to_str().unwrap().to_string();
+
+        let result = EditTool.execute("id", serde_json::json!({
+            "path": path,
+            "edits": [{"oldText": "nonexistent", "newText": "x"}]
+        }), CancellationToken::new(), None).await;
+
+        assert!(result.is_error);
+        assert!(result.content.contains("not found"), "msg: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn edit_multiple_edits_applied() {
+        let mut f = NamedTempFile::new().unwrap();
+        write!(f, "alpha\nbeta\ngamma\n").unwrap();
+        let path = f.path().to_str().unwrap().to_string();
+
+        let result = EditTool.execute("id", serde_json::json!({
+            "path": path.clone(),
+            "edits": [
+                {"oldText": "alpha", "newText": "ALPHA"},
+                {"oldText": "gamma", "newText": "GAMMA"}
+            ]
+        }), CancellationToken::new(), None).await;
+
+        assert!(!result.is_error, "error: {}", result.content);
+        let updated = std::fs::read_to_string(&path).unwrap();
+        assert!(updated.contains("ALPHA"), "updated: {updated}");
+        assert!(updated.contains("GAMMA"), "updated: {updated}");
+        assert!(updated.contains("beta"),  "beta should remain: {updated}");
+        assert!(!updated.contains("alpha"), "alpha replaced: {updated}");
+        assert!(!updated.contains("gamma"), "gamma replaced: {updated}");
+    }
+
+    #[tokio::test]
+    async fn edit_empty_edits_is_error() {
+        let mut f = NamedTempFile::new().unwrap();
+        write!(f, "content\n").unwrap();
+        let path = f.path().to_str().unwrap().to_string();
+
+        let result = EditTool.execute("id", serde_json::json!({
+            "path": path,
+            "edits": []
+        }), CancellationToken::new(), None).await;
+
+        assert!(result.is_error);
+    }
+}
