@@ -3,4 +3,5 @@ pub mod provider;
 pub mod sse;
 pub mod anthropic;
 pub mod openai;
+pub mod mock;
 pub use types::*;

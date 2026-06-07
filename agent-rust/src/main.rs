@@ -4,6 +4,7 @@ mod agent;
 mod tools;
 mod session;
 mod tui;
+mod headless;
 
 use std::sync::Arc;
 use anyhow::Result;
@@ -15,6 +16,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
 use ai::anthropic::AnthropicProvider;
+use ai::openai::OpenAIProvider;
 use agent::AgentContext;
 use session::manager::SessionManager;
 use tools::all_tools;
@@ -26,6 +28,8 @@ Be concise, work methodically, and prefer small targeted edits over large rewrit
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    dotenvy::dotenv().ok();
+
     // Configure tracing to write to a file (not stderr, which would corrupt the TUI)
     let log_file = std::fs::OpenOptions::new()
         .create(true)
@@ -42,14 +46,20 @@ async fn main() -> Result<()> {
             .init();
     }
 
-    // Read config from environment
-    let api_key = std::env::var("ANTHROPIC_API_KEY")
-        .unwrap_or_default();
+    // Read config from environment — OpenRouter takes priority over Anthropic
+    let (api_key, use_openrouter) =
+        if let Ok(k) = std::env::var("OPENROUTER_API_KEY") {
+            (k, true)
+        } else if let Ok(k) = std::env::var("ANTHROPIC_API_KEY") {
+            (k, false)
+        } else {
+            eprintln!("Error: set OPENROUTER_API_KEY or ANTHROPIC_API_KEY.");
+            std::process::exit(1);
+        };
 
-    if api_key.is_empty() {
-        eprintln!("Error: ANTHROPIC_API_KEY environment variable is not set.");
-        eprintln!("Usage: ANTHROPIC_API_KEY=sk-ant-... pi");
-        std::process::exit(1);
+    // Headless mode for automated testing
+    if std::env::var("PI_HEADLESS").as_deref() == Ok("1") {
+        return headless::run(api_key, use_openrouter).await;
     }
 
     let max_turns: usize = std::env::var("PI_MAX_TURNS")
@@ -80,16 +90,28 @@ async fn main() -> Result<()> {
             }
         });
 
+    // Default model: claude-sonnet-4-6 for Anthropic/OpenRouter, overridable via PI_MODEL
+    let default_model = if use_openrouter {
+        "anthropic/claude-sonnet-4-5".to_string()
+    } else {
+        "claude-sonnet-4-6".to_string()
+    };
+    let model_id = std::env::var("PI_MODEL").unwrap_or(default_model);
+
     // Build agent context
     let ctx = AgentContext {
         system_prompt: SYSTEM_PROMPT.to_string(),
         messages: Vec::new(),
         tools: all_tools(),
         api_key: api_key.clone(),
-        model_id: "claude-sonnet-4-6".to_string(),
+        model_id,
     };
 
-    let provider: Arc<dyn ai::provider::Provider> = Arc::new(AnthropicProvider::new());
+    let provider: Arc<dyn ai::provider::Provider> = if use_openrouter {
+        Arc::new(OpenAIProvider::with_base_url("https://openrouter.ai/api/v1"))
+    } else {
+        Arc::new(AnthropicProvider::new())
+    };
 
     // Set up terminal
     enable_raw_mode()?;
