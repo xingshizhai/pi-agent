@@ -1,1 +1,4 @@
 tests/harness/__pycache__/
+**/__pycache__/
+**/*.pyc
+agent-python/.venv/
