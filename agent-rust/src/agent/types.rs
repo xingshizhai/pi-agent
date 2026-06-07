@@ -31,6 +31,7 @@ pub enum AgentEvent {
     Error(String),
 }
 
+#[derive(Clone)]
 pub struct AgentContext {
     pub system_prompt: String,
     pub messages: Vec<Message>,
