@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from ..ai.types import (
     AssistantMessage, Message, TextContent, ToolCall, ToolResultMessage, UserMessage,
-    StreamDone, StreamError, TextDelta, ToolCallEnd, StreamStart,
+    StreamDone, StreamError, TextDelta, ToolCallEnd,
 )
 from ..ai.base import LLMProvider, StreamOptions
 from ..tools.base import ToolResult

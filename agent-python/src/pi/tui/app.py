@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding

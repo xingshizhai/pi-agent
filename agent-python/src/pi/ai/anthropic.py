@@ -12,7 +12,7 @@ from .types import (
     ToolCall, ToolResultMessage, UserMessage,
     StreamStart, TextStart, TextDelta, TextEnd,
     ToolCallStart, ToolCallDelta, ToolCallEnd,
-    StreamDone, StreamError, Usage,
+    StreamDone, Usage,
 )
 from ..tools.base import Tool
 
