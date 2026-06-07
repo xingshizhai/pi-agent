@@ -1,0 +1,19 @@
+layer: 1
+name: "find returns files matching glob pattern"
+workspace:
+  - path: "src/main.rs"
+    content: "fn main() {}"
+  - path: "src/lib.rs"
+    content: "pub fn hello() {}"
+  - path: "README.md"
+    content: "# readme"
+tool_call:
+  name: find
+  args:
+    path: "."
+    pattern: "*.rs"
+expect:
+  tool_result:
+    is_error: false
+    content_contains: "main.rs"
+  workspace_unchanged: true

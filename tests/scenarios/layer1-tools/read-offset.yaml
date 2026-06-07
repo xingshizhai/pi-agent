@@ -1,0 +1,15 @@
+layer: 1
+name: "read with offset returns lines from that line number"
+workspace:
+  - path: "lines.txt"
+    content: "line1\nline2\nline3\nline4\nline5\n"
+tool_call:
+  name: read
+  args:
+    path: "lines.txt"
+    offset: 3
+expect:
+  tool_result:
+    is_error: false
+    content_contains: "line3"
+  workspace_unchanged: true

@@ -1,0 +1,15 @@
+layer: 1
+name: "grep finds lines matching regex pattern"
+workspace:
+  - path: "code.py"
+    content: "def hello():\n    return 'world'\ndef goodbye():\n    return 'bye'\n"
+tool_call:
+  name: grep
+  args:
+    path: "."
+    pattern: "def \\w+"
+expect:
+  tool_result:
+    is_error: false
+    content_contains: "hello"
+  workspace_unchanged: true

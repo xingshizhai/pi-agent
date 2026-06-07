@@ -23,6 +23,13 @@ impl OpenAIProvider {
             base_url: "https://api.openai.com/v1".to_string(),
         }
     }
+
+    pub fn with_base_url(base_url: &str) -> Self {
+        Self {
+            client: Client::new(),
+            base_url: base_url.to_string(),
+        }
+    }
 }
 
 fn convert_messages_openai(messages: &[Message]) -> Vec<Value> {

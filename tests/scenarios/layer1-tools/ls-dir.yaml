@@ -1,0 +1,16 @@
+layer: 1
+name: "ls lists files and directories in path"
+workspace:
+  - path: "src/main.py"
+    content: "print('hello')"
+  - path: "README.md"
+    content: "# readme"
+tool_call:
+  name: ls
+  args:
+    path: "."
+expect:
+  tool_result:
+    is_error: false
+    content_contains: "src"
+  workspace_unchanged: true

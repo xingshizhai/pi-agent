@@ -1,0 +1,14 @@
+layer: 1
+name: "read reads file content with line numbers"
+workspace:
+  - path: "hello.txt"
+    content: "hello world\n"
+tool_call:
+  name: read
+  args:
+    path: "hello.txt"
+expect:
+  tool_result:
+    is_error: false
+    content_contains: "hello world"
+  workspace_unchanged: true

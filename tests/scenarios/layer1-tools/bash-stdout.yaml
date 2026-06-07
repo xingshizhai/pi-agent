@@ -1,0 +1,11 @@
+layer: 1
+name: "bash captures stdout output"
+workspace: []
+tool_call:
+  name: bash
+  args:
+    command: "echo 'hello from bash'"
+expect:
+  tool_result:
+    is_error: false
+    content_contains: "hello from bash"

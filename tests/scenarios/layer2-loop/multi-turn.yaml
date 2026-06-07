@@ -1,0 +1,28 @@
+layer: 2
+name: "agent handles multi-turn conversation with tool calls in each turn"
+workspace:
+  - path: "counter.txt"
+    content: "0\n"
+prompt: "read the counter, increment it, write it back"
+mock_turns:
+  - tool_calls:
+      - id: "t1"
+        name: read
+        args: {path: "counter.txt"}
+    stop_reason: "tool_use"
+  - tool_calls:
+      - id: "t2"
+        name: write
+        args: {path: "counter.txt", content: "1\n"}
+    stop_reason: "tool_use"
+  - text: "Counter incremented from 0 to 1."
+    stop_reason: "end_turn"
+expect:
+  tool_calls:
+    - {name: read, count: 1}
+    - {name: write, count: 1}
+  tool_results_all_success: true
+  turns: 3
+  workspace:
+    - path: "counter.txt"
+      content: "1\n"

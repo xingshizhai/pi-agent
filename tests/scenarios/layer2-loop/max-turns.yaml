@@ -1,0 +1,21 @@
+layer: 2
+name: "agent stops after max_turns exceeded"
+workspace: []
+prompt: "keep going forever"
+# Provide more mock turns than PI_MAX_TURNS allows (default 50, but we set it to 3)
+mock_turns:
+  - tool_calls: [{id: "t1", name: bash, args: {command: "echo 1"}}]
+    stop_reason: "tool_use"
+  - tool_calls: [{id: "t2", name: bash, args: {command: "echo 2"}}]
+    stop_reason: "tool_use"
+  - tool_calls: [{id: "t3", name: bash, args: {command: "echo 3"}}]
+    stop_reason: "tool_use"
+  - tool_calls: [{id: "t4", name: bash, args: {command: "echo 4"}}]
+    stop_reason: "tool_use"
+  - text: "Done"
+    stop_reason: "end_turn"
+env:
+  PI_MAX_TURNS: "3"
+expect:
+  agent_end: true
+  max_turns: 3    # agent should stop at or before 3 turns

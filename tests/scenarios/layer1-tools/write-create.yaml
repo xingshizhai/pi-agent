@@ -1,0 +1,14 @@
+layer: 1
+name: "write creates a new file with given content"
+workspace: []
+tool_call:
+  name: write
+  args:
+    path: "output.txt"
+    content: "created by write tool\n"
+expect:
+  tool_result:
+    is_error: false
+  workspace:
+    - path: "output.txt"
+      content: "created by write tool\n"

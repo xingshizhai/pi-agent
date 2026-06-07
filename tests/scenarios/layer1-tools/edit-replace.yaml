@@ -1,0 +1,18 @@
+layer: 1
+name: "edit replaces exactly one occurrence of oldText"
+workspace:
+  - path: "src/main.py"
+    content: "def hello():\n    return 'world'\n"
+tool_call:
+  name: edit
+  args:
+    path: "src/main.py"
+    edits:
+      - oldText: "return 'world'"
+        newText: "return 'rust'"
+expect:
+  tool_result:
+    is_error: false
+  workspace:
+    - path: "src/main.py"
+      content: "def hello():\n    return 'rust'\n"

@@ -1,0 +1,19 @@
+layer: 2
+name: "agent executes single tool call and ends"
+workspace:
+  - path: "data.txt"
+    content: "important data\n"
+prompt: "read data.txt"
+mock_turns:
+  - tool_calls:
+      - id: "t1"
+        name: read
+        args: {path: "data.txt"}
+    stop_reason: "tool_use"
+  - text: "The file contains: important data"
+    stop_reason: "end_turn"
+expect:
+  tool_calls:
+    - {name: read, count: 1}
+  tool_results_all_success: true
+  turns: 2
