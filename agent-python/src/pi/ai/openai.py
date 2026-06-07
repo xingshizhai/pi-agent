@@ -47,6 +47,14 @@ def _convert_messages_openai(messages: list[Message]) -> list[dict]:
 
 
 class OpenAIProvider(LLMProvider):
+    """OpenAI Chat Completions provider.
+
+    Pass ``base_url`` to use an OpenAI-compatible endpoint (e.g. OpenRouter).
+    """
+
+    def __init__(self, base_url: str | None = None) -> None:
+        self._base_url = base_url
+
     async def stream(
         self,
         messages: list[Message],
@@ -54,7 +62,7 @@ class OpenAIProvider(LLMProvider):
         tools: list[Tool],
         options: StreamOptions,
     ) -> AsyncGenerator[StreamEvent, None]:
-        client = sdk.AsyncOpenAI(api_key=options.api_key)
+        client = sdk.AsyncOpenAI(api_key=options.api_key, base_url=self._base_url)
 
         oai_tools = [
             {"type": "function", "function": {
@@ -129,3 +137,20 @@ class OpenAIProvider(LLMProvider):
                 partial.stop_reason = stop_reason
                 yield StreamDone(stop_reason=stop_reason, message=partial)
                 break
+
+
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+
+class OpenRouterProvider(OpenAIProvider):
+    """OpenRouter provider — OpenAI-compatible endpoint at openrouter.ai.
+
+    Uses ``OPENROUTER_API_KEY`` (or falls back to ``OPENAI_API_KEY``).
+    Model names follow OpenRouter convention, e.g.:
+      - anthropic/claude-sonnet-4-5
+      - openai/gpt-4o
+      - google/gemma-2-9b-it:free
+    """
+
+    def __init__(self) -> None:
+        super().__init__(base_url=OPENROUTER_BASE_URL)
