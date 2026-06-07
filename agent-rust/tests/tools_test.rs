@@ -258,3 +258,117 @@ mod bash_tests {
         assert!(result.is_error, "should be error on cancel");
     }
 }
+
+// ---------- find tests ----------
+
+mod find_tests {
+    use super::*;
+    use pi_agent::tools::find::FindTool;
+    use tempfile::TempDir;
+    use std::fs;
+
+    #[tokio::test]
+    async fn find_matches_files_by_glob() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("foo.rs"), "").unwrap();
+        fs::write(dir.path().join("bar.txt"), "").unwrap();
+
+        let result = FindTool.execute("id", serde_json::json!({
+            "path": dir.path().to_str().unwrap(),
+            "pattern": "*.rs"
+        }), CancellationToken::new(), None).await;
+
+        assert!(!result.is_error);
+        assert!(result.content.contains("foo.rs"), "content: {}", result.content);
+        assert!(!result.content.contains("bar.txt"), "content: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn find_no_matches_returns_message() {
+        let dir = TempDir::new().unwrap();
+        let result = FindTool.execute("id", serde_json::json!({
+            "path": dir.path().to_str().unwrap(),
+            "pattern": "*.xyz"
+        }), CancellationToken::new(), None).await;
+
+        assert!(!result.is_error);
+        assert!(result.content.contains("no matches"), "content: {}", result.content);
+    }
+}
+
+// ---------- grep tests ----------
+
+mod grep_tests {
+    use super::*;
+    use pi_agent::tools::grep::GrepTool;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    #[tokio::test]
+    async fn grep_finds_pattern() {
+        let mut f = NamedTempFile::new().unwrap();
+        writeln!(f, "hello world").unwrap();
+        writeln!(f, "foo bar").unwrap();
+        writeln!(f, "hello again").unwrap();
+
+        let result = GrepTool.execute("id", serde_json::json!({
+            "path": f.path().to_str().unwrap(),
+            "pattern": "hello"
+        }), CancellationToken::new(), None).await;
+
+        assert!(!result.is_error);
+        let lines: Vec<&str> = result.content.lines().collect();
+        assert_eq!(lines.len(), 2, "content: {}", result.content);
+        assert!(result.content.contains("hello world"), "content: {}", result.content);
+        assert!(result.content.contains("hello again"), "content: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn grep_case_insensitive() {
+        let mut f = NamedTempFile::new().unwrap();
+        writeln!(f, "Hello World").unwrap();
+
+        let result = GrepTool.execute("id", serde_json::json!({
+            "path": f.path().to_str().unwrap(),
+            "pattern": "hello",
+            "ignore_case": true
+        }), CancellationToken::new(), None).await;
+
+        assert!(!result.is_error);
+        assert!(result.content.contains("Hello World"), "content: {}", result.content);
+    }
+}
+
+// ---------- ls tests ----------
+
+mod ls_tests {
+    use super::*;
+    use pi_agent::tools::ls::LsTool;
+    use tempfile::TempDir;
+    use std::fs;
+
+    #[tokio::test]
+    async fn ls_lists_entries() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("file.txt"), "hello").unwrap();
+        fs::create_dir(dir.path().join("subdir")).unwrap();
+
+        let result = LsTool.execute("id", serde_json::json!({
+            "path": dir.path().to_str().unwrap()
+        }), CancellationToken::new(), None).await;
+
+        assert!(!result.is_error, "error: {}", result.content);
+        assert!(result.content.contains("file.txt"), "content: {}", result.content);
+        assert!(result.content.contains("subdir"),   "content: {}", result.content);
+        assert!(result.content.contains("dir"),      "should show type: {}", result.content);
+        assert!(result.content.contains("file"),     "should show type: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn ls_nonexistent_is_error() {
+        let result = LsTool.execute("id", serde_json::json!({
+            "path": "/no/such/dir"
+        }), CancellationToken::new(), None).await;
+        assert!(result.is_error);
+    }
+}
