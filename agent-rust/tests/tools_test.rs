@@ -178,3 +178,83 @@ mod edit_tests {
         assert!(result.is_error);
     }
 }
+
+// ---------- bash tests ----------
+
+mod bash_tests {
+    use super::*;
+    use pi_agent::tools::bash::BashTool;
+
+    #[tokio::test]
+    async fn bash_runs_simple_command() {
+        let result = BashTool.execute(
+            "id",
+            serde_json::json!({"command": "echo hello"}),
+            CancellationToken::new(),
+            None,
+        ).await;
+        assert!(!result.is_error, "error: {}", result.content);
+        assert!(result.content.trim().ends_with("hello"), "content: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn bash_captures_stderr() {
+        let result = BashTool.execute(
+            "id",
+            serde_json::json!({"command": "echo err_output >&2"}),
+            CancellationToken::new(),
+            None,
+        ).await;
+        assert!(!result.is_error, "error: {}", result.content);
+        assert!(result.content.contains("err_output"), "content: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn bash_nonzero_exit_is_error() {
+        let result = BashTool.execute(
+            "id",
+            serde_json::json!({"command": "exit 1"}),
+            CancellationToken::new(),
+            None,
+        ).await;
+        assert!(result.is_error, "should be error for exit 1");
+    }
+
+    #[tokio::test]
+    async fn bash_timeout_kills_process() {
+        let start = std::time::Instant::now();
+        let result = BashTool.execute(
+            "id",
+            serde_json::json!({"command": "sleep 30", "timeout": 0.3}),
+            CancellationToken::new(),
+            None,
+        ).await;
+        let elapsed = start.elapsed().as_secs_f64();
+        assert!(elapsed < 5.0, "should timeout quickly, took {elapsed}s");
+        assert!(result.is_error, "should be error on timeout");
+        assert!(result.content.contains("timed out"), "msg: {}", result.content);
+    }
+
+    #[tokio::test]
+    async fn bash_cancellation_stops_process() {
+        let cancel = CancellationToken::new();
+        let cancel2 = cancel.clone();
+
+        // Cancel after a short delay
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            cancel2.cancel();
+        });
+
+        let start = std::time::Instant::now();
+        let result = BashTool.execute(
+            "id",
+            serde_json::json!({"command": "sleep 30"}),
+            cancel,
+            None,
+        ).await;
+        let elapsed = start.elapsed().as_secs_f64();
+        assert!(elapsed < 5.0, "should cancel quickly, took {elapsed}s");
+        assert!(result.is_error, "should be error on cancel");
+    }
+}
