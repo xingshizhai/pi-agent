@@ -1,0 +1,48 @@
+layer: 2
+name: "agent creates a module and a main script that imports from it, then runs to verify"
+workspace: []
+prompt: "Create a math_utils.py module with add/subtract/multiply, then main.py that imports and uses them"
+mock_turns:
+  - tool_calls:
+      - id: "t1"
+        name: write
+        args:
+          path: "math_utils.py"
+          content: |
+            def add(a, b):
+                return a + b
+
+            def subtract(a, b):
+                return a - b
+
+            def multiply(a, b):
+                return a * b
+      - id: "t2"
+        name: write
+        args:
+          path: "main.py"
+          content: |
+            from math_utils import add, subtract, multiply
+
+            print(add(10, 5))       # 15
+            print(subtract(10, 5))  # 5
+            print(multiply(10, 5))  # 50
+    stop_reason: "tool_use"
+  - tool_calls:
+      - id: "t3"
+        name: bash
+        args: {command: "python3 main.py"}
+    stop_reason: "tool_use"
+  - text: "Both files created. main.py imports and uses math_utils successfully."
+    stop_reason: "end_turn"
+expect:
+  tool_calls:
+    - {name: write, count: 2}
+    - {name: bash, count: 1}
+  tool_results_all_success: true
+  turns: 3
+  workspace:
+    - path: "math_utils.py"
+      absent: false
+    - path: "main.py"
+      absent: false
