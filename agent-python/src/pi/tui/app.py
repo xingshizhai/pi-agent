@@ -1,4 +1,15 @@
 # src/pi/tui/app.py
+"""PiApp — TUI 主应用，组装各层并驱动 Agent 任务。
+
+职责：
+  1. 初始化 AgentContext、Provider、Tools、Session
+  2. 用户输入 → agent_loop()（asyncio Task 后台运行）
+  3. 注入 emit 回调，将 AgentEvent 映射为 UI 更新
+  4. AgentEnd 时持久化会话
+
+布局（architecture.md §8.1）：
+  ChatView（1fr）+ InputWidget（5 行）+ StatusBar（1 行）
+"""
 from __future__ import annotations
 
 import asyncio
@@ -14,6 +25,7 @@ from ..agent.events import (
     ToolExecEnd, ToolExecStart, TurnEnd,
 )
 from ..agent.loop import agent_loop
+from ..ai.types import AssistantMessage, TextContent, ToolResultMessage, UserMessage
 from ..session.manager import SessionManager
 from ..tools.bash import BashTool
 from ..tools.edit import EditTool
@@ -67,7 +79,10 @@ class PiApp(App):
         Binding("ctrl+l", "clear_screen", "Clear", show=False),
     ]
 
-    def __init__(self, model_id: str, api_key: str, cwd: str, provider: str = "anthropic") -> None:
+    def __init__(
+        self, model_id: str, api_key: str, cwd: str,
+        provider: str = "anthropic", session_id: str | None = None,
+    ) -> None:
         super().__init__()
         self._model_id = model_id
         self._api_key = api_key
@@ -77,7 +92,11 @@ class PiApp(App):
         self._cancel_signal: asyncio.Event | None = None
         self._agent_task: asyncio.Task | None = None
         self._session_mgr = SessionManager()
-        self._session = self._session_mgr.new_session(cwd)
+        if session_id:
+            self._session = self._session_mgr.load_session(session_id)
+        else:
+            self._session = self._session_mgr.new_session(cwd)
+        self._persisted_count = len(self._session.messages)
         self._start_time: float = 0.0
 
         self._provider = _build_provider(provider)
@@ -87,7 +106,7 @@ class PiApp(App):
         ]
         self._ctx = AgentContext(
             system_prompt=SYSTEM_PROMPT,
-            messages=[],
+            messages=list(self._session.messages),
             tools=self._tools,
             config=AgentConfig(model_id=model_id, api_key=api_key),
         )
@@ -100,18 +119,42 @@ class PiApp(App):
     def on_mount(self) -> None:
         status = self.query_one(StatusBar)
         status.model_name = self._model_id
+        if self._ctx.messages:
+            self._load_history_into_chat()
+
+    def _load_history_into_chat(self) -> None:
+        """将恢复会话中的历史 messages 渲染为 ChatMessage（仅用于显示）。"""
+        chat = self.query_one(ChatView)
+        for msg in self._ctx.messages:
+            if isinstance(msg, UserMessage):
+                content = msg.content if isinstance(msg.content, str) else " ".join(
+                    c.text for c in msg.content if isinstance(c, TextContent)
+                )
+                chat.add_message(ChatMessage(role="user", content=content))
+            elif isinstance(msg, AssistantMessage):
+                text = "".join(b.text for b in msg.content if isinstance(b, TextContent))
+                if text:
+                    chat.add_message(ChatMessage(role="assistant", content=text))
+            elif isinstance(msg, ToolResultMessage):
+                summary = "\n".join(c.text for c in msg.content).replace("\n", " ")[:120]
+                icon = "✗" if msg.is_error else "✓"
+                chat.add_message(ChatMessage(
+                    role="tool",
+                    content=f"{icon} [{msg.tool_name}] {summary}",
+                    tool_name=msg.tool_name,
+                    is_error=msg.is_error,
+                ))
 
     def on_input_widget_submitted(self, event: InputWidget.Submitted) -> None:
+        """InputWidget 通过 post_message(Submitted) 触发此 handler。"""
         text = event.text.strip()
         if not text:
             return
 
-        # Slash commands.
         if text.startswith("/"):
             self._handle_slash(text)
             return
 
-        # Add to input history.
         self.query_one(InputWidget).add_to_history(text)
         self._start_turn(text)
 
@@ -122,7 +165,7 @@ class PiApp(App):
         if cmd in ("/exit", "/quit"):
             self.exit()
         elif cmd == "/clear":
-            chat.clear_messages()
+            chat.clear_messages()   # 只清 UI，ctx.messages 保留
         elif cmd == "/help":
             chat.add_message(ChatMessage(role="assistant", content=HELP_TEXT))
         else:
@@ -131,6 +174,7 @@ class PiApp(App):
             ))
 
     def _start_turn(self, user_text: str) -> None:
+        """启动一轮 Agent 任务：显示用户消息，创建后台 asyncio Task。"""
         chat = self.query_one(ChatView)
         chat.add_message(ChatMessage(role="user", content=user_text))
 
@@ -144,10 +188,12 @@ class PiApp(App):
         )
 
     async def _run_agent(self, user_text: str, cancel: asyncio.Event) -> None:
+        """后台协程：运行 agent_loop，通过 emit 桥接 AgentEvent → UI。"""
         chat = self.query_one(ChatView)
         status = self.query_one(StatusBar)
 
         def emit(event) -> None:
+            # AgentEvent → UI 更新的映射表（TUI 只订阅关心的子集）
             if isinstance(event, MessageUpdate):
                 chat.append_stream(event.delta)
 
@@ -159,7 +205,6 @@ class PiApp(App):
                 chat.tool_end(event.id, event.name, result_content, event.is_error)
 
             elif isinstance(event, TurnEnd):
-                # Accumulate token counts.
                 if hasattr(event, "input_tokens") and event.input_tokens:
                     status.input_tokens += event.input_tokens
                 if hasattr(event, "output_tokens") and event.output_tokens:
@@ -170,9 +215,9 @@ class PiApp(App):
                 elapsed = int((time.monotonic() - self._start_time) * 1000)
                 status.elapsed_ms = elapsed
                 status.is_streaming = False
-                # Persist messages incrementally.
-                for msg in self._ctx.messages:
+                for msg in self._ctx.messages[self._persisted_count:]:
                     self._session_mgr.append_message(self._session, msg)
+                self._persisted_count = len(self._ctx.messages)
 
             elif isinstance(event, AgentError):
                 chat.add_message(ChatMessage(
@@ -185,6 +230,7 @@ class PiApp(App):
         await agent_loop(user_text, self._ctx, self._provider, emit, signal=cancel)
 
     def action_cancel_or_quit(self) -> None:
+        """Ctrl+C：任务运行中 → 取消；空闲时 → 退出。"""
         status = self.query_one(StatusBar)
         if self._cancel_signal and not self._cancel_signal.is_set() and status.is_streaming:
             self._cancel_signal.set()

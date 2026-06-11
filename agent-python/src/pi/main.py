@@ -1,4 +1,14 @@
 # src/pi/main.py
+"""CLI 入口层 — 程序启动点（对应 architecture.md 第二节 CLI 入口层）
+
+职责：
+  1. 加载 .env 环境变量
+  2. 解析命令行参数
+  3. 路由到 TUI 模式（默认）或 Headless 模式（PI_HEADLESS=1）
+  4. 校验 API Key，选择 Provider 和默认模型
+
+不包含业务逻辑，只做配置与启动。
+"""
 from __future__ import annotations
 
 import argparse
@@ -7,19 +17,18 @@ import sys
 
 
 def _load_dotenv() -> None:
-    """Load .env file from the current directory or any parent directory."""
+    """从当前目录或父目录加载 .env，不覆盖已设置的环境变量。"""
     try:
         from dotenv import load_dotenv
-        load_dotenv(override=False)  # don't override already-set env vars
+        load_dotenv(override=False)
     except ImportError:
-        pass  # python-dotenv not installed, silently skip
+        pass
 
 
 def main() -> None:
-    # Load .env before anything else so env vars are available everywhere.
     _load_dotenv()
 
-    # Headless mode for test harness: PI_HEADLESS=1
+    # 跨语言测试 harness 使用：stdin JSON → stdout NDJSON，无 TUI
     if os.environ.get("PI_HEADLESS") == "1":
         from .headless import run as headless_run
         headless_run()
@@ -37,7 +46,7 @@ def main() -> None:
         choices=["anthropic", "openai", "openrouter"],
         help="LLM provider (default: anthropic)",
     )
-    parser.add_argument("--session", help="Resume session by ID")
+    parser.add_argument("--session", help="Resume session by ID (or unique ID prefix)")
     parser.add_argument("--list-sessions", action="store_true", help="List saved sessions")
     args = parser.parse_args()
 
@@ -52,7 +61,7 @@ def main() -> None:
             print(f"{meta.id[:8]}  {meta.cwd}  ({meta.message_count} messages)")
         return
 
-    # Resolve API key and default model per provider.
+    # 按 provider 解析 API Key 和默认模型
     provider = args.provider
     if provider == "anthropic":
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -78,10 +87,28 @@ def main() -> None:
 
     model_id = args.model or default_model
 
+    session_id = None
+    if args.session:
+        from .session.manager import SessionManager
+        mgr = SessionManager()
+        if (mgr.dir / f"{args.session}.pi").exists():
+            session_id = args.session
+        else:
+            matches = [m for m in mgr.list_sessions() if m.id.startswith(args.session)]
+            if len(matches) == 1:
+                session_id = matches[0].id
+            elif not matches:
+                print(f"Error: no session found matching '{args.session}'", file=sys.stderr)
+                sys.exit(1)
+            else:
+                ids = ", ".join(m.id[:8] for m in matches)
+                print(f"Error: ambiguous session ID '{args.session}', matches: {ids}", file=sys.stderr)
+                sys.exit(1)
+
     from .tui.app import PiApp
     cwd = os.getcwd()
-    app = PiApp(model_id=model_id, api_key=api_key, cwd=cwd, provider=provider)
-    app.run()
+    app = PiApp(model_id=model_id, api_key=api_key, cwd=cwd, provider=provider, session_id=session_id)
+    app.run()   # 进入 Textual 事件循环，阻塞直到用户退出
 
 
 if __name__ == "__main__":
