@@ -21,7 +21,8 @@ REPO = Path(__file__).parents[2]
 # Override with --binary or PYTHON_PI_BINARY env var.
 DEFAULT_BINARY_CANDIDATES = [
     REPO / "agent-python" / ".venv" / "bin" / "pi",   # after `uv install`
-    REPO / "agent-python" / "pi",                       # explicit wrapper script
+    REPO / "agent-python" / "pi.cmd",                   # Windows wrapper
+    REPO / "agent-python" / "pi",                       # Unix wrapper
 ]
 
 ENV_FILE = REPO / "agent-python" / ".env"

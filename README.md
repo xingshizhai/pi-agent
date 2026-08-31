@@ -12,8 +12,8 @@
 pi-agent/
 ├── README.md
 ├── docs/
-│   ├── 01-original-analysis.md   # 原始项目深度分析
-│   └── 02-architecture.md        # 统一架构设计方案
+│   ├── pi-architecture-analysis.md  # 原始 Pi 项目架构与分析
+│   └── architecture.md              # 多语言复刻架构设计
 ├── agent-go/                     # Go 实现（bubbletea TUI）
 ├── agent-python/                 # Python 实现（Textual TUI）
 ├── agent-rust/                   # Rust 实现（ratatui TUI）
@@ -223,16 +223,17 @@ python run_tests.py --impl go,python,rust --layer 2 --report report.json
 # Python：列出会话
 pi --list-sessions
 
-# 恢复会话（Go）
+# 恢复会话（Go / Python，支持完整 ID 或唯一前缀）
 ./pi --session <session-id>
+pi --session <session-id>
 ```
 
 ---
 
 ## 架构文档
 
-- [原始项目分析](docs/01-original-analysis.md) — 工具参数、会话格式、循环逻辑
-- [统一架构设计](docs/02-architecture.md) — 数据类型、接口规范、工具行为
+- [Pi 项目架构与分析](docs/pi-architecture-analysis.md) — 整体架构、分层设计、工具语义、复刻范围
+- [多语言复刻架构设计](docs/architecture.md) — 数据类型、接口规范、工具行为
 - [Go 实现说明](agent-go/README.md) — Go 特定架构和测试说明
 - [Python 实现说明](agent-python/README.md) — Python 特定架构和测试说明
 - [Rust 实现说明](agent-rust/README.md) — Rust 特定架构和测试说明

@@ -6,8 +6,8 @@
 目标：最高运行时性能，内存安全，单一静态二进制，`tokio` 驱动的异步架构。
 
 **参考原项目**：https://github.com/earendil-works/pi
-**原始项目分析**：见 `../docs/01-original-analysis.md`
-**架构设计方案**：见 `../docs/02-architecture.md`（⚠️ 实现前必读，包含精确的工具参数规范）
+**原始项目分析**：见 `../docs/pi-architecture-analysis.md`
+**架构设计方案**：见 `../docs/architecture.md`（⚠️ 实现前必读，包含精确的工具参数规范）
 
 ---
 
@@ -302,7 +302,7 @@ pub trait Tool: Send + Sync {
 
 #### 七个内置工具规范
 
-> ⚠️ 精确参数定义见 `../docs/02-architecture.md` 第五章
+> ⚠️ 精确参数定义见 `../docs/architecture.md` 第五章
 
 **`read.rs`**
 ```
@@ -373,7 +373,7 @@ pub trait Tool: Send + Sync {
 
 ### 4. 会话管理层（`src/session/`）
 
-> 会话文件格式：NDJSON 追加写入，扩展名 `.pi`，完整规范见 `../docs/02-architecture.md` 第七章。
+> 会话文件格式：NDJSON 追加写入，扩展名 `.pi`，完整规范见 `../docs/architecture.md` 第七章。
 
 ```rust
 // 会话头（第一行）

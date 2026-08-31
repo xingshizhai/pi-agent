@@ -63,6 +63,9 @@ def _build_provider(provider_name: str):
     if provider_name == "openrouter":
         from ..ai.openai import OpenRouterProvider
         return OpenRouterProvider()
+    if provider_name == "kimi":
+        from ..ai.openai import KimiProvider
+        return KimiProvider()
     from ..ai.anthropic import AnthropicProvider
     return AnthropicProvider()
 

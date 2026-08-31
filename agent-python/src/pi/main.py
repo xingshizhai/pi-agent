@@ -42,9 +42,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--provider",
-        default=os.environ.get("PI_PROVIDER", "anthropic"),
-        choices=["anthropic", "openai", "openrouter"],
-        help="LLM provider (default: anthropic)",
+        default=os.environ.get("PI_PROVIDER", "kimi"),
+        choices=["anthropic", "openai", "openrouter", "kimi"],
+        help="LLM provider (default: kimi)",
     )
     parser.add_argument("--session", help="Resume session by ID (or unique ID prefix)")
     parser.add_argument("--list-sessions", action="store_true", help="List saved sessions")
@@ -77,6 +77,15 @@ def main() -> None:
         default_model = "anthropic/claude-sonnet-4-5"
         if not api_key:
             print("Error: OPENROUTER_API_KEY not set (add it to .env or environment)", file=sys.stderr)
+            sys.exit(1)
+    elif provider == "kimi":
+        api_key = (
+            os.environ.get("KIMI_API_KEY")
+            or os.environ.get("MOONSHOT_API_KEY", "")
+        )
+        default_model = os.environ.get("KIMI_DEFAULT_MODEL", "kimi-for-coding")
+        if not api_key:
+            print("Error: KIMI_API_KEY not set (add it to .env or environment)", file=sys.stderr)
             sys.exit(1)
     else:  # openai
         api_key = os.environ.get("OPENAI_API_KEY", "")

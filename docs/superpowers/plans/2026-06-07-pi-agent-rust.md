@@ -3075,7 +3075,7 @@ git commit -m "feat(rust): pi-agent MVP complete — Anthropic + OpenAI, 7 tools
 
 ## Self-Review Against Spec
 
-**Coverage check (docs/02-architecture.md):**
+**Coverage check (docs/architecture.md):**
 - [x] AI layer: Anthropic SSE — Task 5
 - [x] AI layer: OpenAI SSE — Task 16
 - [x] Agent loop state machine — Task 11

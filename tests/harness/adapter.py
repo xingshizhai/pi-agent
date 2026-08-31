@@ -258,8 +258,13 @@ def build_adapter(impl: str, binary_override: str | None = None) -> AgentAdapter
         return HeadlessAdapter("go", binary)
 
     if impl == "python":
-        # Python agent uses `uv run pi` — wrap in a shell script equivalent.
-        binary = binary_override or REPO_ROOT / "agent-python" / "pi"
+        if binary_override:
+            binary = Path(binary_override)
+        else:
+            base = REPO_ROOT / "agent-python"
+            binary = base / "pi.cmd" if os.name == "nt" else base / "pi"
+            if not binary.exists():
+                binary = base / "pi"
         return HeadlessAdapter("python", binary)
 
     if impl == "pi":

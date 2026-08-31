@@ -187,20 +187,29 @@ def run() -> None:
 
     # API key — allow dummy when using mock provider.
     api_key = (
-        os.environ.get("ANTHROPIC_API_KEY")
+        os.environ.get("KIMI_API_KEY")
+        or os.environ.get("MOONSHOT_API_KEY")
+        or os.environ.get("ANTHROPIC_API_KEY")
+        or os.environ.get("OPENROUTER_API_KEY")
         or os.environ.get("OPENAI_API_KEY")
         or "sk-test-dummy"
     )
-    model_id = os.environ.get("PI_MODEL", "claude-sonnet-4-6")
+    model_id = os.environ.get("PI_MODEL", "kimi-for-coding")
     max_turns = int(os.environ.get("PI_MAX_TURNS", "50"))
 
     if mock_turns is not None:
         provider = _make_mock_provider(mock_turns)
     else:
-        provider_name = os.environ.get("PI_PROVIDER", "anthropic")
+        provider_name = os.environ.get("PI_PROVIDER", "kimi")
         if provider_name == "openai":
             from .ai.openai import OpenAIProvider
             provider = OpenAIProvider()
+        elif provider_name == "kimi":
+            from .ai.openai import KimiProvider
+            provider = KimiProvider()
+        elif provider_name == "openrouter":
+            from .ai.openai import OpenRouterProvider
+            provider = OpenRouterProvider()
         else:
             from .ai.anthropic import AnthropicProvider
             provider = AnthropicProvider()

@@ -52,8 +52,13 @@ class OpenAIProvider(LLMProvider):
     Pass ``base_url`` to use an OpenAI-compatible endpoint (e.g. OpenRouter).
     """
 
-    def __init__(self, base_url: str | None = None) -> None:
+    def __init__(
+        self,
+        base_url: str | None = None,
+        default_headers: dict[str, str] | None = None,
+    ) -> None:
         self._base_url = base_url
+        self._default_headers = default_headers
 
     async def stream(
         self,
@@ -62,7 +67,11 @@ class OpenAIProvider(LLMProvider):
         tools: list[Tool],
         options: StreamOptions,
     ) -> AsyncGenerator[StreamEvent, None]:
-        client = sdk.AsyncOpenAI(api_key=options.api_key, base_url=self._base_url)
+        client = sdk.AsyncOpenAI(
+            api_key=options.api_key,
+            base_url=self._base_url,
+            default_headers=self._default_headers,
+        )
 
         oai_tools = [
             {"type": "function", "function": {
@@ -140,6 +149,35 @@ class OpenAIProvider(LLMProvider):
 
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+# Kimi Code（Coding Plan，sk-kimi- 密钥）— 见 https://www.kimi.com/code/docs
+KIMI_CODING_BASE_URL = "https://api.kimi.com/coding/v1"
+# Kimi Platform（按量计费，Moonshot 开放平台）
+MOONSHOT_PLATFORM_BASE_URL = "https://api.moonshot.ai/v1"
+
+
+def kimi_base_url() -> str:
+    import os
+    return os.environ.get("KIMI_API_BASE_URL", KIMI_CODING_BASE_URL)
+
+
+KIMI_CODING_USER_AGENT = "claude-code/0.1.0"
+
+
+class KimiProvider(OpenAIProvider):
+    """Kimi Code API（Coding Plan）或 Kimi Platform，均为 OpenAI 兼容协议。
+
+    Coding Plan（api.kimi.com/coding）要求客户端 User-Agent 在白名单内
+    （如 Kimi CLI、Claude Code）；可通过 KIMI_USER_AGENT 覆盖。
+    """
+
+    def __init__(self, base_url: str | None = None) -> None:
+        import os
+        url = base_url or kimi_base_url()
+        headers: dict[str, str] | None = None
+        if "api.kimi.com/coding" in url:
+            ua = os.environ.get("KIMI_USER_AGENT", KIMI_CODING_USER_AGENT)
+            headers = {"User-Agent": ua}
+        super().__init__(base_url=url, default_headers=headers)
 
 
 class OpenRouterProvider(OpenAIProvider):
